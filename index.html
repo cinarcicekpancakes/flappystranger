@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stranger Flappy</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            color: #e63946;
+        }
+        canvas {
+            border: 4px solid #e63946;
+            border-radius: 10px;
+            box-shadow: 0 0 20px #e63946;
+        }
+        #game-container {
+            position: relative;
+        }
+        #score {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            font-size: 2em;
+            font-weight: bold;
+            text-shadow: 0 0 10px #e63946;
+            z-index: 10;
+        }
+        #start-screen, #game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 20;
+        }
+        h1 {
+            color: #e63946;
+            font-size: 3em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #e63946;
+        }
+        button {
+            background-color: #e63946;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2em;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background-color: #f77f00;
+            transform: scale(1.1);
+            box-shadow: 0 0 15px #e63946;
+        }
+        .hidden {
+            display: none !important;
+        }
+
+        /* Shop styles */
+        .shop-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            background-color: #111827;
+            border: 1px solid #374151;
+            border-radius: 6px;
+            color: #f9fafb;
+            cursor: pointer;
+            text-align: left;
+        }
+        .shop-item:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+        .shop-icon {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .shop-icon-mindflayer { background: radial-gradient(circle, #111 0%, #000 70%); }
+        .shop-icon-vecna { background: radial-gradient(circle, #b5179e 0%, #590d57 70%); }
+        .shop-icon-waffle { background: #f4b074; box-shadow: inset 0 0 0 2px #b5651d; }
+        .shop-icon-steve { background: #5c3b2e; }
+        .shop-icon-nancy { background: #c28f6b; }
+        .shop-icon-robin { background: #6d597a; }
+        .shop-text { display: flex; flex-direction: column; font-size: 0.85em; }
+        .shop-name { font-weight: bold; }
+        .shop-cost { font-size: 0.8em; color: #9ca3af; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="score">0</div>
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+        
+        <div id="start-screen">
+            <h1>STRANGER FLAPPY</h1>
+            <div style="margin: 20px 0;">
+                <p>Choose your character:</p>
+                <div id="character-selection" style="display: flex; gap: 10px; justify-content: center; margin: 15px 0; flex-wrap: wrap;">
+                    <button class="character-btn" data-skin="demogorgon" style="background-color: #e63946; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Demogorgon</button>
+                    <button class="character-btn" data-skin="eleven" style="background-color: #4cc9f0; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Eleven</button>
+                    <button class="character-btn" data-skin="dustin" style="background-color: #f77f00; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Dustin</button>
+                    <button class="character-btn" data-skin="mike" style="background-color: #06ffa5; color: black; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Mike</button>
+                    <button class="character-btn" data-skin="max" style="background-color: #ff006e; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Max</button>
+                    <button class="character-btn" data-skin="hopper" style="background-color: #f0ead2; color: black; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Hopper</button>
+                    <button class="character-btn" data-skin="lucas" style="background-color: #70e000; color: black; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Lucas</button>
+                    <button class="character-btn" data-skin="will" style="background-color: #48bfe3; color: black; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Will</button>
+                    <button class="character-btn" data-skin="steve" style="background-color: #f5deb3; color: black; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Steve</button>
+                    <button class="character-btn" data-skin="nancy" style="background-color: #ffafcc; color: black; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Nancy</button>
+                    <button class="character-btn" data-skin="robin" style="background-color: #80ffdb; color: black; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Robin</button>
+                    <button class="character-btn" data-skin="erica" style="background-color: #ffd166; color: black; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Erica</button>
+                    <button class="character-btn" data-skin="jonathan" style="background-color: #b08968; color: black; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Jonathan</button>
+                    <button class="character-btn" data-skin="joyce" style="background-color: #ffe5b4; color: black; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Joyce</button>
+                    <button class="character-btn" data-skin="vecna" style="background-color: #b5179e; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Vecna</button>
+                    <button class="character-btn" data-skin="mindflayer" style="background-color: #7209b7; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Mind Flayer</button>
+                    <button class="character-btn" data-skin="waffle" style="background-color: #f4a261; color: black; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Waffle</button>
+                </div>
+                <p id="selected-character">Selected: Demogorgon</p>
+            </div>
+            <p>Click or press SPACE to start</p>
+            <button id="start-button">START GAME</button>
+        </div>
+        
+        <div id="game-over" class="hidden">
+            <h1>GAME OVER</h1>
+            <p>Score: <span id="final-score">0</span></p>
+            <button id="restart-button">PLAY AGAIN</button>
+        </div>
+
+        <!-- Skin shop overlay -->
+        <div id="shop-screen" class="hidden" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background-color: rgba(0,0,0,0.85); z-index: 25;">
+            <h1>SKIN SHOP</h1>
+            <p style="margin-bottom: 10px;">Skulls: <span id="shop-skulls">0</span></p>
+            <div class="shop-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; max-height: 60%; overflow-y: auto; padding: 10px; min-width: 320px;">
+                <button class="shop-item" data-skin="mindflayer" data-cost="40">
+                    <div class="shop-icon shop-icon-mindflayer"></div>
+                    <div class="shop-text">
+                        <span class="shop-name">Mind Flayer</span>
+                        <span class="shop-cost">- 40 skulls</span>
+                    </div>
+                </button>
+                <button class="shop-item" data-skin="vecna" data-cost="60">
+                    <div class="shop-icon shop-icon-vecna"></div>
+                    <div class="shop-text">
+                        <span class="shop-name">Vecna</span>
+                        <span class="shop-cost">- 60 skulls</span>
+                    </div>
+                </button>
+                <button class="shop-item" data-skin="waffle" data-cost="25">
+                    <div class="shop-icon shop-icon-waffle"></div>
+                    <div class="shop-text">
+                        <span class="shop-name">Waffle</span>
+                        <span class="shop-cost">- 25 skulls</span>
+                    </div>
+                </button>
+                <button class="shop-item" data-skin="steve" data-cost="25">
+                    <div class="shop-icon shop-icon-steve"></div>
+                    <div class="shop-text">
+                        <span class="shop-name">Steve</span>
+                        <span class="shop-cost">- 25 skulls</span>
+                    </div>
+                </button>
+                <button class="shop-item" data-skin="nancy" data-cost="25">
+                    <div class="shop-icon shop-icon-nancy"></div>
+                    <div class="shop-text">
+                        <span class="shop-name">Nancy</span>
+                        <span class="shop-cost">- 25 skulls</span>
+                    </div>
+                </button>
+                <button class="shop-item" data-skin="robin" data-cost="25">
+                    <div class="shop-icon shop-icon-robin"></div>
+                    <div class="shop-text">
+                        <span class="shop-name">Robin</span>
+                        <span class="shop-cost">- 25 skulls</span>
+                    </div>
+                </button>
+            </div>
+            <button id="close-shop" style="margin-top: 15px;">BACK</button>
+        </div>
+        
+        <div id="settings-screen" class="hidden">
+            <h1>SETTINGS</h1>
+            <div style="margin: 20px 0;">
+                <label for="speed-slider">Game Speed: <span id="speed-value">2</span></label>
+                <input type="range" id="speed-slider" min="1" max="5" value="2" step="0.5" style="width: 200px; margin: 10px 0;">
+            </div>
+            <button id="save-settings">SAVE</button>
+            <button id="back-to-menu">BACK</button>
+        </div>
+        
+        <button id="settings-button" style="position: absolute; top: 20px; right: 20px; padding: 10px 15px; font-size: 0.9em; z-index: 30;">SETTINGS</button>
+        <button id="shop-button" style="position: absolute; top: 20px; left: 20px; padding: 10px 15px; font-size: 0.9em; z-index: 30;">SHOP</button>
+    </div>
+
+    <script src="game-fixed.js"></script>
+</body>
+</html>
