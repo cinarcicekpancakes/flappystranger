@@ -29,6 +29,93 @@ demogorgonImage.src = 'images/demog.png';
 const dustinImage = new Image();
 dustinImage.src = 'images/dustin1.png';
 
+// Sounds
+let hitSound = null;
+try {
+    hitSound = new Audio('sounds/I hit.mp3');
+} catch (_) {
+    hitSound = null;
+}
+
+// Jump sound - we'll use Web Audio API for a short synth blip instead of mp3
+// This ensures instant, short sounds even with rapid jumping
+let audioContext = null;
+try {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+} catch (_) {
+    audioContext = null;
+}
+
+// Background music
+let bgMusic = null;
+try {
+    bgMusic = new Audio('sounds/bgm.mp3');
+    bgMusic.loop = true;
+    bgMusic.volume = 0.3;
+} catch (_) {
+    bgMusic = null;
+}
+
+// Score sound (when passing a pipe)
+let scoreSound = null;
+try {
+    scoreSound = new Audio('sounds/score.mp3');
+    scoreSound.volume = 0.4;
+} catch (_) {
+    scoreSound = null;
+}
+
+function playHitSound() {
+    if (!hitSound) return;
+    try {
+        hitSound.currentTime = 0;
+        hitSound.play().catch(() => {});
+    } catch (_) {
+        // ignore audio errors
+    }
+}
+
+function playJumpSound() {
+    if (!audioContext) return;
+    try {
+        // Resume audio context if suspended (browser autoplay policy)
+        if (audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+
+        // Create a short synth "blip" sound
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        // Quick upward pitch sweep for a "jump" feel
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(300, audioContext.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.08);
+
+        // Quick fade out
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.1);
+    } catch (_) {
+        // ignore audio errors
+    }
+}
+
+function playScoreSound() {
+    if (!scoreSound) return;
+    try {
+        scoreSound.currentTime = 0;
+        scoreSound.play().catch(() => {});
+    } catch (_) {
+        // ignore audio errors
+    }
+}
+
 // Game constants
 const GRAVITY = 0.45; // slightly softer fall for smoother motion
 const JUMP_FORCE = -7; // lower jump height for finer control
@@ -38,11 +125,11 @@ const PIPE_GAP = 230;
 let PIPE_SPEED = 2;
 
 // Horizontal distance between consecutive pipes (randomized)
-let nextPipeDistance = PIPE_WIDTH * 2;
+let nextPipeDistance = 200;
 
 function resetNextPipeDistance() {
-    // Random gap: at least one pipe width, up to about three pipe widths
-    nextPipeDistance = PIPE_WIDTH + Math.random() * PIPE_WIDTH * 2;
+    // Random gap: at least 200px, up to ~400px
+    nextPipeDistance = 200 + Math.random() * 200;
 }
 
 // Settings
@@ -168,9 +255,11 @@ class Player {
                         shieldCharges--;
                         activateTimedShield();
                     }
+                    playHitSound();
                     // small bounce up as feedback
                     this.velocity = JUMP_FORCE * 0.6;
                 } else {
+                    playHitSound();
                     gameOver();
                 }
             }
@@ -180,6 +269,7 @@ class Player {
     jump() {
         if (!gameRunning) return;
         this.velocity = JUMP_FORCE;
+        playJumpSound();
         // a few more particles for a richer jump effect
         createParticles(this.x + this.width/2, this.y + this.height/2, 8, this.color);
     }
@@ -246,18 +336,22 @@ class Player {
         }
 
         // Fallback: procedural Demogorgon if sprite not ready
+        // Animated mouth opening/closing
+        const mouthPulse = Math.sin(performance.now() * 0.008) * 0.3 + 0.7;
+
         // Head (flower-like)
         ctx.beginPath();
         ctx.ellipse(0, 0, this.width / 2.4, this.height / 2.4, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Dark mouth circle in center
+        // Dark mouth circle in center (animated size)
         ctx.fillStyle = '#000';
         ctx.beginPath();
-        ctx.arc(0, 0, this.width / 5, 0, Math.PI * 2);
+        ctx.arc(0, 0, (this.width / 5) * mouthPulse, 0, Math.PI * 2);
         ctx.fill();
 
-        // Petals (sharper, more pointy tips)
+        // Petals (sharper, more pointy tips) - animated spread
+        const petalSpread = Math.sin(performance.now() * 0.006) * 0.1 + 1;
         for (let i = 0; i < 5; i++) {
             const angle = (i / 5) * Math.PI * 2;
             ctx.save();
@@ -267,8 +361,8 @@ class Player {
             // base of petal near the mouth
             ctx.moveTo(this.width / 4.5, -this.height / 7);
             ctx.lineTo(this.width / 4.5, this.height / 7);
-            // long, narrow tip far out for a spiky look
-            ctx.lineTo(this.width / 1.3, 0);
+            // long, narrow tip far out for a spiky look (animated)
+            ctx.lineTo((this.width / 1.3) * petalSpread, 0);
             ctx.closePath();
             ctx.fill();
             ctx.restore();
@@ -349,12 +443,14 @@ class Player {
         ctx.fillStyle = tailGradient;
         ctx.fill();
 
-        // Thin shadowy tendrils from the body
+        // Thin shadowy tendrils from the body (animated wave)
         ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
         ctx.lineWidth = 1.3;
         const tentacleLen = this.height * 2.1;
+        const waveTime = performance.now() * 0.003;
         for (let i = 0; i < 6; i++) {
-            const angle = (-Math.PI / 2) + (i - 2.5) * 0.28;
+            const waveOffset = Math.sin(waveTime + i * 0.8) * 0.15;
+            const angle = (-Math.PI / 2) + (i - 2.5) * 0.28 + waveOffset;
             ctx.beginPath();
             ctx.moveTo(0, -1);
             const cx = Math.cos(angle) * (tentacleLen * 0.35);
@@ -611,6 +707,7 @@ class Pipe {
             score++;
             skulls++;
             localStorage.setItem('skulls', skulls.toString());
+            playScoreSound();
             if (score % 10 === 0) {
                 shieldCharges++;
                 createParticles(this.x + this.width/2, this.gapY, 12, '#4dabf7');
@@ -629,10 +726,12 @@ class Pipe {
                         shieldCharges--;
                         activateTimedShield();
                     }
+                    playHitSound();
                     // knockback feedback
                     player.velocity = JUMP_FORCE * 0.8;
                     createParticles(player.x + player.width/2, player.y + player.height/2, 20, '#4dabf7');
                 } else {
+                    playHitSound();
                     gameOver();
                 }
             }
@@ -780,12 +879,22 @@ function updateShopUI() {
     items.forEach(btn => {
         const skin = btn.dataset.skin;
         const cost = parseInt(btn.dataset.cost || '0', 10);
-        const skinName = skins[skin]?.name || skin;
+        const costEl = btn.querySelector('.shop-cost');
+
         if (isSkinUnlocked(skin)) {
-            btn.textContent = `${skinName} (Owned)`;
-            btn.disabled = true;
+            if (currentSkin === skin) {
+                // Currently equipped
+                if (costEl) costEl.textContent = '✓ EQUIPPED';
+                btn.style.border = '2px solid #4ade80';
+            } else {
+                // Owned but not equipped
+                if (costEl) costEl.textContent = 'Owned';
+                btn.style.border = '1px solid #374151';
+            }
+            btn.disabled = false; // Allow clicking to equip
         } else {
-            btn.textContent = `${skinName} - ${cost} skulls`;
+            if (costEl) costEl.textContent = `${cost} skulls`;
+            btn.style.border = '1px solid #374151';
             btn.disabled = skulls < cost;
         }
     });
@@ -826,11 +935,95 @@ function showStartScreen() {
     settingsButton.style.display = 'block';
 }
 
+// Character-specific game over messages
+const gameOverMessages = {
+    demogorgon: "The Upside Down claims another...",
+    eleven: "Friends don't lie... but gravity does.",
+    dustin: "Son of a bitch!",
+    mike: "This is not a drill!",
+    max: "Running up that hill wasn't enough.",
+    hopper: "Mornings are for coffee and contemplation.",
+    lucas: "You rolled a 1...",
+    will: "Will the Wise has fallen.",
+    steve: "That hair couldn't save you.",
+    nancy: "Should've grabbed the shotgun.",
+    robin: "Dingus down!",
+    erica: "You can't spell America without Erica... but you can spell GAME OVER.",
+    jonathan: "Should've stayed in the darkroom.",
+    joyce: "The lights went out.",
+    vecna: "You got Vecna'd!",
+    waffle: "Eleven is sad now.",
+    mindflayer: "The Shadow Monster returns to the void."
+};
+
+// Character voice settings for TTS
+const characterVoiceSettings = {
+    demogorgon: { pitch: 0.3, rate: 0.7, preferMale: true },
+    eleven: { pitch: 1.3, rate: 0.85, preferMale: false },
+    dustin: { pitch: 1.1, rate: 1.1, preferMale: true },
+    mike: { pitch: 1.0, rate: 1.0, preferMale: true },
+    max: { pitch: 1.2, rate: 1.0, preferMale: false },
+    hopper: { pitch: 0.6, rate: 0.8, preferMale: true },
+    lucas: { pitch: 1.0, rate: 1.0, preferMale: true },
+    will: { pitch: 1.2, rate: 0.9, preferMale: true },
+    steve: { pitch: 0.9, rate: 1.0, preferMale: true },
+    nancy: { pitch: 1.1, rate: 0.95, preferMale: false },
+    robin: { pitch: 1.15, rate: 1.05, preferMale: false },
+    erica: { pitch: 1.4, rate: 1.1, preferMale: false },
+    jonathan: { pitch: 0.85, rate: 0.9, preferMale: true },
+    joyce: { pitch: 1.0, rate: 1.0, preferMale: false },
+    vecna: { pitch: 0.2, rate: 0.6, preferMale: true },
+    waffle: { pitch: 1.5, rate: 1.2, preferMale: false },
+    mindflayer: { pitch: 0.1, rate: 0.5, preferMale: true }
+};
+
+// Text-to-Speech function
+function speakMessage(text) {
+    if (!('speechSynthesis' in window)) return;
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+
+    // Get character-specific voice settings
+    const settings = characterVoiceSettings[currentSkin] || { pitch: 1.0, rate: 0.9, preferMale: false };
+
+    // Try to find an appropriate voice
+    const voices = window.speechSynthesis.getVoices();
+    let selectedVoice = null;
+
+    if (settings.preferMale) {
+        selectedVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Male') || v.name.includes('Daniel') || v.name.includes('David')));
+    } else {
+        selectedVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Karen')));
+    }
+
+    // Fallback to any English voice
+    if (!selectedVoice) {
+        selectedVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+    }
+
+    if (selectedVoice) {
+        utterance.voice = selectedVoice;
+    }
+
+    utterance.rate = settings.rate;
+    utterance.pitch = settings.pitch;
+    utterance.volume = 0.8;
+
+    window.speechSynthesis.speak(utterance);
+}
+
 function showGameOverScreen() {
-    finalScoreElement.textContent = `${score} (High: ${highScore})`;
+    const message = gameOverMessages[currentSkin] || "Game Over!";
+    finalScoreElement.innerHTML = `${score} (High: ${highScore})<br><span style="font-size: 0.6em; color: #aaa;">${message}</span>`;
     gameOverScreen.classList.remove('hidden');
     settingsScreen.classList.add('hidden');
     settingsButton.style.display = 'block';
+
+    // Speak the game over message
+    speakMessage(message);
 }
 
 // Game control functions
@@ -859,12 +1052,23 @@ function startGame() {
     settingsButton.style.display = 'none';
     
     gameRunning = true;
+
+    // Start background music
+    if (bgMusic) {
+        bgMusic.currentTime = 0;
+        bgMusic.play().catch(() => {});
+    }
 }
 
 function gameOver() {
     if (!gameRunning) return;
     
     gameRunning = false;
+
+    // Stop background music
+    if (bgMusic) {
+        bgMusic.pause();
+    }
     
     if (score > highScore) {
         highScore = score;
@@ -892,13 +1096,53 @@ function gameLoop() {
     ctx.fillStyle = bgGradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Soft cloud blobs
+    // === PARALLAX LAYER 1: Far background - Hawkins Lab silhouette (slowest) ===
+    const farScrollSpeed = 0.005;
+    const farOffset = (performance.now() * farScrollSpeed) % canvas.width;
+    ctx.fillStyle = 'rgba(30, 30, 40, 0.6)';
+    // Simple building silhouettes
+    for (let i = 0; i < 4; i++) {
+        const bx = (i * 200 - farOffset + canvas.width) % (canvas.width + 200) - 100;
+        const bh = 80 + (i % 3) * 30;
+        ctx.fillRect(bx, canvas.height - bh, 60, bh);
+        ctx.fillRect(bx + 70, canvas.height - bh - 20, 40, bh + 20);
+    }
+    // Radio tower
+    const towerX = (300 - farOffset + canvas.width) % (canvas.width + 200) - 100;
+    ctx.strokeStyle = 'rgba(50, 50, 60, 0.7)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(towerX, canvas.height - 150);
+    ctx.lineTo(towerX - 20, canvas.height);
+    ctx.moveTo(towerX, canvas.height - 150);
+    ctx.lineTo(towerX + 20, canvas.height);
+    ctx.moveTo(towerX, canvas.height - 150);
+    ctx.lineTo(towerX, canvas.height - 180);
+    ctx.stroke();
+
+    // === PARALLAX LAYER 2: Mid - Trees (medium speed) ===
+    const midScrollSpeed = 0.015;
+    const midOffset = (performance.now() * midScrollSpeed) % canvas.width;
+    ctx.fillStyle = 'rgba(20, 25, 20, 0.5)';
+    for (let i = 0; i < 10; i++) {
+        const tx = (i * 80 - midOffset + canvas.width) % (canvas.width + 100) - 50;
+        const th = 60 + (i % 4) * 20;
+        // Simple triangle tree
+        ctx.beginPath();
+        ctx.moveTo(tx, canvas.height);
+        ctx.lineTo(tx + 15, canvas.height - th);
+        ctx.lineTo(tx + 30, canvas.height);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    // === PARALLAX LAYER 3: Soft cloud blobs (faster) ===
     for (let i = 0; i < 8; i++) {
-        const cx = (i * 60 + performance.now() * 0.01) % (canvas.width + 120) - 60;
-        const cy = (i % 2 === 0 ? 120 : 220) + (Math.sin((performance.now() * 0.0007) + i) * 20);
-        const radiusX = 70;
-        const radiusY = 35;
-        ctx.fillStyle = 'rgba(200, 200, 200, 0.12)';
+        const cx = (i * 80 + performance.now() * 0.02) % (canvas.width + 160) - 80;
+        const cy = (i % 2 === 0 ? 100 : 180) + (Math.sin((performance.now() * 0.0007) + i) * 25);
+        const radiusX = 90;
+        const radiusY = 40;
+        ctx.fillStyle = 'rgba(180, 180, 190, 0.1)';
         ctx.beginPath();
         ctx.ellipse(cx, cy, radiusX, radiusY, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -1001,17 +1245,27 @@ if (closeShopButton && shopScreen) {
     });
 }
 
-// Shop purchase buttons
+// Shop purchase/equip buttons
 document.querySelectorAll('.shop-item').forEach(btn => {
     btn.addEventListener('click', () => {
         const skin = btn.dataset.skin;
         const cost = parseInt(btn.dataset.cost || '0', 10);
-        if (isSkinUnlocked(skin)) return;
+
+        if (isSkinUnlocked(skin)) {
+            // Already owned - equip it
+            selectCharacter(skin);
+            updateShopUI();
+            return;
+        }
+
+        // Not owned - try to purchase
         if (skulls < cost) return;
         skulls -= cost;
         localStorage.setItem('skulls', skulls.toString());
         unlockedSkins[skin] = true;
         saveUnlockedSkins();
+        // Auto-equip after purchase
+        selectCharacter(skin);
         updateHudText();
         updateShopUI();
     });
